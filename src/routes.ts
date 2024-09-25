@@ -1,62 +1,50 @@
 import type { Express } from 'express'
+import type AuthHandler from './auth/handler'
 import { loginSchema } from './auth/schema'
+import multer from './lib/upload'
 import { deserializeToken } from './middlewares/deserializeToken'
+import formDataParse from './middlewares/formDataParser'
 import requiredLogin from './middlewares/requiredLogin'
+import sanitizeInput from './middlewares/sanitizeInput'
 import { validateInput } from './middlewares/validateInput'
+import type ProductHandler from './product/handler'
+import { createProduct, updateProduct } from './product/schema'
+import type UserHandler from './user/handler'
 import { createUserSchema } from './user/schema'
 
-import connection from '../db/connection'
-import AuthHandler from './auth/handler'
-import AuthRepository from './auth/repository'
-import AuthService from './auth/service'
-import multer from './lib/upload'
-import formDataParse from './middlewares/formDataParser'
-import sanitizeInput from './middlewares/sanitizeInput'
-import ProductHandler from './product/handler'
-import ProductRepository from './product/repository'
-import { createProduct, updateProduct } from './product/schema'
-import ProductService from './product/service'
-import UserHandler from './user/handler'
-import UserSerivce from './user/service'
+interface Handler {
+  auth: AuthHandler
+  user: UserHandler
+  product: ProductHandler
+}
 
-export default function routes(app: Express) {
-  const authRepo = new AuthRepository(connection)
-  const authService = new AuthService(authRepo)
-  const authHandler = new AuthHandler(authService)
-
-  const userService = new UserSerivce(authRepo)
-  const userHandler = new UserHandler(userService)
-
-  const productRepo = new ProductRepository(connection)
-  const productService = new ProductService(productRepo)
-  const productHandler = new ProductHandler(productService)
-
+export default function routes(app: Express, handler: Handler) {
   app.use(sanitizeInput)
   app.post(
     '/api/register',
     //@ts-ignore
     validateInput(createUserSchema),
-    authHandler.registerUser,
+    handler.auth.registerUser,
   )
-  app.post('/api/login', validateInput(loginSchema), authHandler.login)
-  app.get('/api/refresh', authHandler.refreshToken)
+  app.post('/api/login', validateInput(loginSchema), handler.auth.login)
+  app.get('/api/refresh', handler.auth.refreshToken)
 
   app.use(deserializeToken)
   app.use(requiredLogin)
-  app.get('/api/users', userHandler.getCurrentUser)
-  app.get('/api/users/:id', userHandler.getUserById)
+  app.get('/api/users', handler.user.getCurrentUser)
+  app.get('/api/users/:id', handler.user.getUserById)
 
   app.post(
     '/api/products',
     formDataParse(multer.array('images', 5)),
     validateInput(createProduct),
-    productHandler.createProduct,
+    handler.product.createProduct,
   )
-  app.get('/api/products', productHandler.getProducts)
+  app.get('/api/products', handler.product.getProducts)
   app.put(
     '/api/products/:id',
     formDataParse(multer.array('images', 5)),
     validateInput(updateProduct),
-    productHandler.updateProductById,
+    handler.product.updateProductById,
   )
 }
